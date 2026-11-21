@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "B008",  # Allow Depends in FastAPI route definitions
+    "B904",  # Allow raise HTTPException without from err
+    "E501",  # Line length handled softly
+    "E402",  # Allow sys.path manipulation before local imports in scripts/tests/alembic
+    "E712",  # Allow SQLAlchemy == True comparison for Boolean columns
+]
