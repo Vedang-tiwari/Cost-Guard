@@ -1,18 +1,18 @@
 import asyncio
-import uuid
-import sys
 import os
+import sys
+import uuid
 
 # Add backend directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend")))
 
-from sqlalchemy import select
-from app.database.session import AsyncSessionLocal
-from app.database.models.organization import Organization
+from app.api.routes.models import DEFAULT_MODELS
+from app.core.security import hash_api_key
 from app.database.models.application import Application
 from app.database.models.model import ModelRegistry
-from app.core.security import hash_api_key
-from app.api.routes.models import DEFAULT_MODELS
+from app.database.models.organization import Organization
+from app.database.session import AsyncSessionLocal
+from sqlalchemy import select
 
 
 async def seed():
