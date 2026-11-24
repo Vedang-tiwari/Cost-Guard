@@ -6,20 +6,24 @@ from app.analyzer.token_estimator import (
     estimate_expected_output_tokens,
     estimate_messages_tokens,
 )
+from app.budgets.budget_manager import budget_manager
 from app.cache.cache_policy import CachePolicy, is_request_cacheable
 from app.cache.semantic_cache import get_semantic_cache
 from app.core.exceptions import CostGuardException
 from app.core.logging import get_logger
+from app.core.metrics import record_request_metrics
 from app.cost.calculator import (
     calculate_baseline_cost,
     calculate_cost,
     calculate_savings,
 )
-from app.cost.pricing_registry import get_model_pricing
+from app.cost.pricing_registry import get_model_pricing, pricing_registry
 from app.database.models.application import Application
 from app.database.models.request_log import RequestLog
+from app.evaluation.evaluator import QualityEvaluator
 from app.optimization.prompt_optimizer import optimize_prompt
 from app.providers.factory import get_provider_factory
+from app.router.fallback import get_fallback_model
 from app.router.model_router import RoutingInput, get_model_router
 from app.schemas.request import ChatCompletionRequest
 from app.schemas.response import (
@@ -37,14 +41,16 @@ logger = get_logger(__name__)
 class OptimizationPipeline:
     """
     Orchestrates the Cost Guard intelligent request lifecycle:
-    Analysis -> Token Estimation -> Semantic Cache -> Prompt Optimization ->
-    Model Routing -> Provider Execution -> Cost Calculation & Persistence.
+    Analysis -> Token Estimation -> Budget Verification -> Semantic Cache ->
+    Prompt Optimization -> Model Routing -> Provider Execution -> Quality Gate &
+    Fallback -> Cost Calculation & Observability.
     """
 
     def __init__(self):
         self.router = get_model_router()
         self.cache = get_semantic_cache()
         self.provider_factory = get_provider_factory()
+        self.evaluator = QualityEvaluator()
 
     async def execute(
         self,
@@ -91,7 +97,6 @@ class OptimizationPipeline:
             )
             if cache_result.hit and cache_result.response_content:
                 latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                # Cache hit gives 100% savings on provider calls
                 savings = baseline_cost
                 savings_pct = 100.0
 
@@ -114,6 +119,19 @@ class OptimizationPipeline:
                 )
                 db.add(log_entry)
                 await db.commit()
+
+                # Record Prometheus metrics for cache hit
+                record_request_metrics(
+                    provider="cache",
+                    model=cache_result.model or request.model,
+                    status_code="200",
+                    cache_hit=True,
+                    latency_ms=latency_ms,
+                    actual_cost=0.0,
+                    baseline_cost=baseline_cost,
+                    input_tokens=estimated_input_tokens,
+                    output_tokens=0,
+                )
 
                 return ChatCompletionResponse(
                     request_id=request_id,
@@ -147,8 +165,6 @@ class OptimizationPipeline:
         opt_result = optimize_prompt(request.messages, enabled=prompt_opt_enabled)
         working_messages = opt_result.optimized_messages
         is_prompt_optimized = len(opt_result.methods_applied) > 0 or opt_result.tokens_saved > 0
-
-        # Update input tokens after prompt optimization
         current_input_tokens = opt_result.optimized_tokens
 
         # -------------------------------------------------------------
@@ -169,9 +185,18 @@ class OptimizationPipeline:
         selected_provider = routing_decision.provider
 
         # -------------------------------------------------------------
+        # Step 5b: Budget Check
+        # -------------------------------------------------------------
+        await budget_manager.check_budget(
+            session=db,
+            organization_id=application.organization_id,
+            application_id=application.id,
+            estimated_cost=routing_decision.estimated_cost,
+        )
+
+        # -------------------------------------------------------------
         # Step 6: Provider Execution
         # -------------------------------------------------------------
-        # Prepare executed request
         execution_request = ChatCompletionRequest(
             model=selected_model,
             messages=working_messages,
@@ -191,7 +216,6 @@ class OptimizationPipeline:
             request_status = "error"
             error_message = e.message
 
-            # Log failure
             log_entry = RequestLog(
                 request_id=request_id,
                 application_id=application.id,
@@ -214,7 +238,58 @@ class OptimizationPipeline:
             raise e
 
         # -------------------------------------------------------------
-        # Step 7: Accurate Cost Calculation
+        # Step 6b: Quality Gate & Threshold-Based Cascade Fallback
+        # -------------------------------------------------------------
+        quality_score: float | None = None
+        fallback_used = False
+        fallback_from: str | None = None
+
+        if request.quality and (request.quality.eval_enabled or request.quality.minimum_score > 0):
+            eval_res = await self.evaluator.evaluate(
+                candidate=provider_response.content,
+                task_type=task_type,
+                threshold=request.quality.minimum_score,
+            )
+            quality_score = eval_res.score
+
+            if request.quality.eval_enabled and not eval_res.passed:
+                fallback_target = get_fallback_model(selected_model)
+                if fallback_target != selected_model:
+                    logger.info(
+                        f"Quality gate failed (score={quality_score:.2f} < {request.quality.minimum_score}). "
+                        f"Triggering fallback from {selected_model} to {fallback_target}."
+                    )
+                    fallback_entry = pricing_registry.get(fallback_target)
+                    fb_provider_name = fallback_entry.provider if fallback_entry else "openai"
+                    fb_provider = self.provider_factory.get_provider(fb_provider_name)
+
+                    try:
+                        fb_execution_request = ChatCompletionRequest(
+                            model=fallback_target,
+                            messages=working_messages,
+                            max_tokens=request.max_tokens or expected_output_tokens,
+                            temperature=request.temperature,
+                            stream=False,
+                        )
+                        fb_response = await fb_provider.generate(fb_execution_request)
+                        fallback_from = selected_model
+                        selected_model = fallback_target
+                        selected_provider = fb_provider_name
+                        provider_response = fb_response
+                        fallback_used = True
+
+                        # Re-evaluate with fallback response
+                        re_eval = await self.evaluator.evaluate(
+                            candidate=provider_response.content,
+                            task_type=task_type,
+                            threshold=request.quality.minimum_score,
+                        )
+                        quality_score = re_eval.score
+                    except Exception as fb_err:
+                        logger.warning(f"Fallback invocation to {fallback_target} failed: {fb_err}")
+
+        # -------------------------------------------------------------
+        # Step 7: Accurate Cost Calculation & Spend Tracking
         # -------------------------------------------------------------
         in_tokens = provider_response.usage.input_tokens or current_input_tokens
         out_tokens = provider_response.usage.output_tokens or 0
@@ -228,9 +303,16 @@ class OptimizationPipeline:
             output_price_per_million=pricing.output_price_per_million,
         )
 
-        # Baseline cost for actual tokens
         actual_baseline = calculate_baseline_cost(in_tokens, out_tokens)
         savings, savings_pct = calculate_savings(actual_cost, actual_baseline)
+
+        # Record actual spend on budget
+        await budget_manager.record_spend(
+            session=db,
+            organization_id=application.organization_id,
+            application_id=application.id,
+            actual_cost=actual_cost,
+        )
 
         # -------------------------------------------------------------
         # Step 8: Store in Semantic Cache if Cacheable
@@ -248,8 +330,9 @@ class OptimizationPipeline:
             )
 
         # -------------------------------------------------------------
-        # Step 9: Observability & Logging
+        # Step 9: Observability, Metrics & Persistence
         # -------------------------------------------------------------
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         log_entry = RequestLog(
             request_id=request_id,
             application_id=application.id,
@@ -264,10 +347,27 @@ class OptimizationPipeline:
             cache_hit=False,
             complexity_score=complexity_score,
             routing_strategy=routing_decision.routing_strategy,
+            quality_score=quality_score,
+            fallback_used=fallback_used,
             status="success",
         )
         db.add(log_entry)
         await db.commit()
+
+        # Prometheus metrics recording
+        record_request_metrics(
+            provider=selected_provider,
+            model=selected_model,
+            status_code="200",
+            cache_hit=False,
+            latency_ms=latency_ms,
+            actual_cost=actual_cost,
+            baseline_cost=actual_baseline,
+            input_tokens=in_tokens,
+            output_tokens=out_tokens,
+            fallback_used=fallback_used,
+            fallback_from=fallback_from,
+        )
 
         return ChatCompletionResponse(
             request_id=request_id,
@@ -290,7 +390,8 @@ class OptimizationPipeline:
                 routing_strategy=routing_decision.routing_strategy,
                 complexity_score=complexity_score,
                 prompt_optimized=is_prompt_optimized,
-                fallback_used=routing_decision.fallback_required,
+                fallback_used=fallback_used,
+                quality_score=quality_score,
             ),
         )
 
