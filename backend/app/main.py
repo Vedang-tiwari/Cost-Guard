@@ -1,11 +1,12 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from app.api.routes import chat, health, models
+from app.api.routes import analytics, budgets, chat, evaluations, health, models
 from app.core.config import get_settings
 from app.core.exceptions import CostGuardException
 from app.core.logging import get_logger, setup_logging
-from fastapi import FastAPI, Request
+from app.core.metrics import get_prometheus_metrics
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -60,6 +61,16 @@ async def costguard_exception_handler(request: Request, exc: CostGuardException)
 app.include_router(health.router)
 app.include_router(models.router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
+app.include_router(budgets.router, prefix=settings.API_V1_PREFIX)
+app.include_router(evaluations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
+
+
+@app.get("/metrics", tags=["Observability"])
+async def prometheus_metrics() -> Response:
+    """Prometheus exposition metrics endpoint for scraper integration."""
+    body, content_type = get_prometheus_metrics()
+    return Response(content=body, media_type=content_type)
 
 
 @app.get("/")
@@ -69,4 +80,5 @@ async def root():
         "version": "0.1.0",
         "docs": "/docs",
         "health": "/health",
+        "metrics": "/metrics",
     }
