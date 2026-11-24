@@ -90,3 +90,28 @@ BASELINE_MODEL = "gpt-4o"
 def get_model_pricing(model_name: str) -> ModelPricing:
     """Retrieves pricing for a model from catalog, or returns baseline pricing if unknown."""
     return CATALOG.get(model_name, CATALOG[BASELINE_MODEL])
+
+
+class PricingRegistry:
+    """Convenience registry interface for model pricing catalog."""
+
+    def __init__(self, catalog: dict[str, ModelPricing] | None = None) -> None:
+        self._catalog = catalog or CATALOG
+
+    def get(self, model_name: str) -> ModelPricing | None:
+        return self._catalog.get(model_name)
+
+    def get_or_baseline(self, model_name: str) -> ModelPricing:
+        return self._catalog.get(model_name, self._catalog[BASELINE_MODEL])
+
+    def calculate_cost(self, model_name: str, input_tokens: int, output_tokens: int) -> float:
+        pricing = self.get_or_baseline(model_name)
+        in_cost = (input_tokens / 1_000_000) * pricing.input_price_per_million
+        out_cost = (output_tokens / 1_000_000) * pricing.output_price_per_million
+        return round(in_cost + out_cost, 6)
+
+    def list_models(self) -> list[ModelPricing]:
+        return list(self._catalog.values())
+
+
+pricing_registry = PricingRegistry()
