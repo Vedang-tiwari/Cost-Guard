@@ -1,0 +1,106 @@
+[
+  {
+    "id": "cls-001",
+    "category": "classification",
+    "task_type": "classification",
+    "prompt": "Classify the sentiment of the following customer review as Positive, Neutral, or Negative: 'The battery lasts only 2 hours and the screen flickers constantly.'",
+    "expected_output": "Negative"
+  },
+  {
+    "id": "cls-002",
+    "category": "classification",
+    "task_type": "classification",
+    "prompt": "Classify this customer support query into one category [Billing, Technical, Account, Shipping]: 'I was charged twice for order #88492.'",
+    "expected_output": "Billing"
+  },
+  {
+    "id": "ext-001",
+    "category": "extraction",
+    "task_type": "extraction",
+    "prompt": "Extract the vendor name, total amount, and due date from this invoice snippet: 'ACME Corp has billed you $1,450.00 for cloud consulting services due on November 30, 2026.'",
+    "expected_output": "Vendor: ACME Corp\nTotal: $1,450.00\nDue Date: November 30, 2026"
+  },
+  {
+    "id": "ext-002",
+    "category": "extraction",
+    "task_type": "extraction",
+    "prompt": "Extract all email addresses from this text: 'Contact sales at sales@enterprise.io or help at support@enterprise.io.'",
+    "expected_output": "sales@enterprise.io, support@enterprise.io"
+  },
+  {
+    "id": "sum-001",
+    "category": "summarization",
+    "task_type": "summarization",
+    "prompt": "Summarize the following passage in 2 sentences: 'Quantum computing harnesses quantum mechanics to deliver exponential speedups for specialized problems. Major tech firms are investing billions into noisy intermediate-scale quantum devices. While practical commercial quantum advantage for general computing remains years away, breakthroughs in error correction are accelerating the timeline.'",
+    "expected_output": "Quantum computing leverages quantum mechanics to solve specialized problems at exponential speeds with heavy industry investment. Commercial general-purpose quantum advantage remains years away, but advancements in error correction are quickening progress."
+  },
+  {
+    "id": "sum-002",
+    "category": "summarization",
+    "task_type": "summarization",
+    "prompt": "Summarize the key outcome of this meeting note: 'The engineering team met on Tuesday and decided to migrate our primary transactional database to PostgreSQL 16 by Q1 next year to reduce licensing costs.'",
+    "expected_output": "The engineering team decided to migrate the primary transactional database to PostgreSQL 16 in Q1 to save licensing costs."
+  },
+  {
+    "id": "cod-001",
+    "category": "code",
+    "task_type": "code",
+    "prompt": "Write a Python function named `is_palindrome(s: str) -> bool` that checks if a string is a palindrome ignoring casing and non-alphanumeric characters.",
+    "expected_output": "```python\ndef is_palindrome(s: str) -> bool:\n    cleaned = [c.lower() for c in s if c.isalnum()]\n    return cleaned == cleaned[::-1]\n```"
+  },
+  {
+    "id": "cod-002",
+    "category": "code",
+    "task_type": "code",
+    "prompt": "Write a Python function `fibonacci(n: int) -> list[int]` that returns the first n Fibonacci numbers.",
+    "expected_output": "```python\ndef fibonacci(n: int) -> list[int]:\n    if n <= 0:\n        return []\n    if n == 1:\n        return [0]\n    seq = [0, 1]\n    while len(seq) < n:\n        seq.append(seq[-1] + seq[-2])\n    return seq\n```"
+  },
+  {
+    "id": "mth-001",
+    "category": "math",
+    "task_type": "math",
+    "prompt": "A store offers a 20% discount on a $150 jacket. Sales tax of 8% is applied after the discount. What is the final price?",
+    "expected_output": "$129.60 (Discounted price: $120.00; Sales tax: $9.60; Total: $129.60)"
+  },
+  {
+    "id": "mth-002",
+    "category": "math",
+    "task_type": "math",
+    "prompt": "If a train travels 360 miles in 4.5 hours, what is its average speed in miles per hour?",
+    "expected_output": "80 mph (360 / 4.5 = 80)"
+  },
+  {
+    "id": "rsn-001",
+    "category": "reasoning",
+    "task_type": "reasoning",
+    "prompt": "Alice is taller than Bob. Bob is taller than Charlie. Is Charlie taller than Alice? Explain your reasoning.",
+    "expected_output": "No, Charlie is not taller than Alice. Because Alice is taller than Bob, and Bob is taller than Charlie, by the transitive property Alice is strictly taller than Charlie."
+  },
+  {
+    "id": "rsn-002",
+    "category": "reasoning",
+    "task_type": "reasoning",
+    "prompt": "All mammals are warm-blooded. A dolphin is a mammal. Can we conclude that a dolphin is warm-blooded? Explain step-by-step.",
+    "expected_output": "Yes, we can conclude that a dolphin is warm-blooded. Step 1: All mammals are warm-blooded (universal premise). Step 2: A dolphin is classified as a mammal (specific premise). Therefore, by deductive reasoning (syllogism), a dolphin must be warm-blooded."
+  },
+  {
+    "id": "str-001",
+    "category": "structured_output",
+    "task_type": "structured_output",
+    "prompt": "Format this contact information as a JSON object with keys 'name', 'email', 'roles': Alex Smith, alex.smith@acme.org, Admin and Developer.",
+    "expected_output": "{\"name\": \"Alex Smith\", \"email\": \"alex.smith@acme.org\", \"roles\": [\"Admin\", \"Developer\"]}",
+    "expected_schema": {
+      "required": ["name", "email", "roles"]
+    }
+  },
+  {
+    "id": "str-002",
+    "category": "structured_output",
+    "task_type": "structured_output",
+    "prompt": "Return a JSON object with 'status', 'server', 'uptime_hours' for a server named web-01 running for 144 hours with OK status.",
+    "expected_output": "{\"status\": \"OK\", \"server\": \"web-01\", \"uptime_hours\": 144}",
+    "expected_schema": {
+      "required": ["status", "server", "uptime_hours"]
+    }
+  }
+]
