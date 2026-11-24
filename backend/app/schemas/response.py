@@ -28,6 +28,7 @@ class OptimizationInfo(BaseModel):
     complexity_score: float = Field(default=0.0)
     prompt_optimized: bool = Field(default=False)
     fallback_used: bool = Field(default=False)
+    quality_score: float | None = Field(default=None)
 
 
 class ChatCompletionResponse(BaseModel):
