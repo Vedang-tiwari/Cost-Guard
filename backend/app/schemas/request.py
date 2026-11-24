@@ -17,6 +17,7 @@ class OptimizationConfig(BaseModel):
 
 class QualityConfig(BaseModel):
     minimum_score: float = Field(default=0.90, ge=0.0, le=1.0, description="Minimum acceptable quality score")
+    eval_enabled: bool = Field(default=False, description="Enable post-generation quality gate check")
 
 
 class ChatCompletionRequest(BaseModel):
