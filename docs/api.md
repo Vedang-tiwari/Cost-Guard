@@ -1,131 +1,56 @@
-# Cost Guard API Documentation (Phase 1)
+# Cost Guard API Documentation
 
 ## Base URL
-Default: `http://localhost:8000`
+- Direct Backend: `http://localhost:8000`
+- Via Docker Nginx Proxy: `http://localhost:3000`
+- Interactive OpenAPI Docs: `/docs`
 
 ---
 
-## 1. Health & Liveness Probes
+## 1. Authentication & Applications
 
-### GET `/health`
-Returns gateway operational status.
+### `POST /api/v1/auth/register`
+Provisions a new user, organization, default optimization policy, and initial API key.
 
-**Response (200 OK):**
-```json
-{
-  "status": "healthy",
-  "environment": "development",
-  "version": "0.1.0",
-  "timestamp": "2026-11-20T04:20:00Z"
-}
-```
+### `POST /api/v1/auth/login`
+Authenticates email/password credentials and issues an HS256 JWT Bearer token.
 
-### GET `/ready`
-Validates database connectivity and upstream provider configuration.
+### `GET /api/v1/auth/me`
+Returns authenticated user and organization details.
 
-**Response (200 OK):**
-```json
-{
-  "status": "ready",
-  "database": "connected",
-  "providers": {
-    "openai": true,
-    "anthropic": true,
-    "gemini": true,
-    "ollama": false
-  },
-  "timestamp": "2026-11-20T04:20:00Z"
-}
-```
+### `GET /api/v1/applications` | `POST /api/v1/applications` | `DELETE /api/v1/applications/{id}`
+Manage scoped application API keys (`cg_live_...`). Raw keys are returned only at creation time and stored exclusively as SHA-256 hashes.
 
 ---
 
-## 2. Models Registry
+## 2. Chat Gateway & Playground
 
-### GET `/api/v1/models`
-Lists all active models and their cost metrics.
+### `POST /api/v1/chat/completions`
+Executes chat completions with optional optimization and quality gating. Accepts `X-API-Key: cg_...` or `Authorization: Bearer <token>`.
 
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "model_gpt4o",
-    "provider": "openai",
-    "model_name": "gpt-4o",
-    "input_price_per_million": 2.50,
-    "output_price_per_million": 10.00,
-    "capabilities": {
-      "chat": true,
-      "vision": true,
-      "function_calling": true
-    },
-    "context_window": 128000,
-    "is_active": true,
-    "pricing_version": "2024-11"
-  }
-]
-```
-
-### GET `/api/v1/models/{model_id}`
-Returns details for a single model by ID or model name.
+### `POST /api/v1/playground/compare`
+Side-by-side comparison of fixed-model execution versus Cost Guard optimized execution in `"simulate"` (offline engine evaluation) or `"live"` (upstream provider) mode.
 
 ---
 
-## 3. Chat Completions
+## 3. Models & Optimization Policies
 
-### POST `/api/v1/chat/completions`
+- `GET /api/v1/models`: List active (or all) models in `models` registry.
+- `GET /api/v1/models/{model_id}`: Fetch model details.
+- `PATCH /api/v1/models/{model_id}`: Update token prices, pricing version, or active availability.
+- `GET /api/v1/models/providers/status`: Inspect server provider key readiness (no secrets returned).
+- `GET /api/v1/policies` & `PUT /api/v1/policies`: Read and update organization routing strategy, semantic cache threshold, prompt optimization, quality threshold, fallback behavior, and output token caps.
 
-**Headers:**
-- `Content-Type: application/json`
-- `X-API-Key: cg_live_<your_key>` or `Authorization: Bearer <your_key>`
+---
 
-**Request Body:**
-```json
-{
-  "model": "gpt-4o",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a concise assistant."
-    },
-    {
-      "role": "user",
-      "content": "Explain machine learning."
-    }
-  ],
-  "max_tokens": 500,
-  "temperature": 0.7
-}
-```
+## 4. Analytics, Budgets, Evaluations & Benchmarks
 
-**Response (200 OK):**
-```json
-{
-  "request_id": "req_8f1a3b5c7d9e",
-  "model": "gpt-4o",
-  "provider": "openai",
-  "response": {
-    "role": "assistant",
-    "content": "Machine learning is a field of artificial intelligence..."
-  },
-  "usage": {
-    "input_tokens": 24,
-    "output_tokens": 42,
-    "total_tokens": 66
-  },
-  "cost": {
-    "estimated_cost": 0.00048,
-    "baseline_cost": 0.00048,
-    "savings": 0.0,
-    "savings_percentage": 0.0
-  },
-  "optimization": {
-    "cache_hit": false,
-    "routing_strategy": "explicit",
-    "complexity_score": 0.0,
-    "prompt_optimized": false,
-    "fallback_used": false
-  }
-}
-```
-
+- `GET /api/v1/analytics/overview?days=30`
+- `GET /api/v1/analytics/costs?days=14&period=daily|weekly|monthly`
+- `GET /api/v1/analytics/models?days=30`
+- `GET /api/v1/analytics/savings?days=30`
+- `GET /api/v1/analytics/logs?limit=50`
+- `GET /api/v1/budgets` | `POST /api/v1/budgets` | `GET /api/v1/budgets/{id}` | `PATCH /api/v1/budgets/{id}`
+- `POST /api/v1/evaluations/run` | `GET /api/v1/evaluations`
+- `GET /api/v1/benchmarks/results` | `POST /api/v1/benchmarks/run`
+- `GET /health` | `GET /ready` | `GET /metrics`
