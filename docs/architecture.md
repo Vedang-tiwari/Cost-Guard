@@ -1,43 +1,45 @@
-# Architecture Overview — Cost Guard Phase 1
+# Architecture Overview — Cost Guard
 
-## 1. Gateway Request Lifecycle
+## 1. End-to-End Platform Architecture
 
 ```text
-  [ Client Application ]
-            │
-            │ HTTP POST /api/v1/chat/completions
-            │ Headers: X-API-Key: cg_live_...
-            ▼
-  [ FastAPI Gateway Router ]
-            │
-            ├─► [ Security Dependency ]
-            │     └─► Hash incoming key (SHA-256)
-            │     └─► Query Application in PostgreSQL
-            │     └─► Validate Active status
-            │
-            ├─► [ Model & Provider Factory ]
-            │     └─► Resolve target model (e.g. gpt-4o -> openai)
-            │     └─► Fetch ModelRegistry pricing per 1M tokens
-            │
-            ├─► [ LLM Provider Adapter ]
-            │     └─► Execute Async Provider API call
-            │     └─► Normalize Response & Token Counts
-            │     └─► Standardize error mapping (auth, rate-limit, timeout)
-            │
-            ├─► [ Usage & Cost Engine ]
-            │     └─► Calculate actual cost = (in/1M * in_rate) + (out/1M * out_rate)
-            │     └─► Calculate baseline reference cost & savings
-            │     └─► Asynchronously persist RequestLog record in PostgreSQL
-            │
-            ▼
-  [ Return ChatCompletionResponse to Client ]
+  [ React + Vite Dashboard ] ──► [ Nginx Reverse Proxy (:3000) ]
+                                          │
+                                          ▼  /api/* , /metrics , /health
+  [ Client SDKs / cURL ] ──────► [ FastAPI Gateway (:8000) ]
+                                          │
+            ┌─────────────────────────────┼─────────────────────────────┐
+            ▼                             ▼                             ▼
+   [ Auth & Scoped Keys ]        [ Optimization Pipeline ]       [ Management & Analytics ]
+    • JWT Sessions (HS256)        • Task & Complexity Scorer      • Analytics Aggregator
+    • PBKDF2 Passwords            • Token Estimator (tiktoken)    • Budget Manager & Alerts
+    • SHA-256 App API Keys        • Semantic Vector Cache         • Quality Evaluator & LLM Judge
+                                  • Prompt Optimizer              • Benchmark Suite
+                                  • Intelligent Model Router      • Optimization Policies
+                                  • Quality Gate & Cascade
+                                          │
+                                          ▼
+                         [ Unified Provider Abstraction ]
+                  (OpenAI • Anthropic • Google Gemini • Ollama)
+                                          │
+                                          ▼
+              [ PostgreSQL 16 + pgvector ]  +  [ Redis ]  +  [ Prometheus / Grafana ]
 ```
 
-## 2. Directory Structure
+---
 
-- `backend/app/api/`: API routes (`chat.py`, `models.py`, `health.py`) and security dependencies (`dependencies.py`).
-- `backend/app/core/`: Configuration, logging, exception hierarchy, security utilities.
-- `backend/app/database/`: SQLAlchemy 2.0 async engine, models (`Organization`, `User`, `Application`, `ModelRegistry`, `RequestLog`).
-- `backend/app/providers/`: Unified provider interface and concrete adapters (`OpenAIProvider`, `AnthropicProvider`, `GeminiProvider`, `OllamaProvider`).
-- `backend/app/schemas/`: Pydantic V2 request and response contracts.
+## 2. Backend Layers (`backend/app/`)
 
+- `api/routes/`: `auth.py`, `applications.py`, `chat.py`, `models.py`, `analytics.py`, `budgets.py`, `evaluations.py`, `policies.py`, `benchmarks.py`, `playground.py`, `health.py`.
+- `api/dependencies.py`: Dual authentication dependency validating either `X-API-Key` (`cg_live_...`) or Dashboard `Authorization: Bearer <jwt>`.
+- `gateway/optimization_pipeline.py`: 9-stage intelligent request pipeline orchestrating complexity scoring, token estimation, budget checks, semantic cache lookup/storage, prompt compression, model routing, quality gate cascade fallback, cost accounting, and Prometheus metric emission.
+- `analyzer/`, `router/`, `optimization/`, `cache/`, `cost/`: Core optimization modules.
+- `evaluation/`, `budgets/`, `analytics/`: Quality preservation engine, spending limit enforcement, and FinOps aggregation queries.
+- `database/`: Async SQLAlchemy 2.0 models (`Organization`, `User`, `Application`, `ModelRegistry`, `RequestLog`, `CacheEntry`, `Budget`, `Evaluation`, `OptimizationPolicy`, `BenchmarkRun`) and Alembic migrations `001`–`004`.
+
+## 3. Frontend Architecture (`frontend/src/`)
+
+- `services/api.ts`: Typed HTTP API client managing Bearer JWT and API Key headers.
+- `hooks/useAuth.tsx`: Session state provider supporting email/password auth, registration, and direct API key sign-in.
+- `charts/`: Recharts data visualization components (`SpendTrendChart`, `ModelDistributionChart`, `BenchmarkBarChart`).
+- `pages/`: Overview, API Playground, Cost Analytics, Models & Providers, Optimization Policy, Budgets & Alerts, Benchmarks, Applications & API Keys, Login, and Register.
