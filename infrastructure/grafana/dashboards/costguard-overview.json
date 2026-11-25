@@ -1,0 +1,62 @@
+{
+  "title": "Cost Guard Gateway Observability",
+  "uid": "costguard-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Gateway Requests / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(costguard_requests_total[1m])) by (provider, model)",
+          "legendFormat": "{{provider}} / {{model}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Cumulative Spend vs Savings (USD)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(costguard_cost_dollars_total) by (type)",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Request Latency P95 (Seconds)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(costguard_request_duration_seconds_bucket[5m])) by (le, provider))",
+          "legendFormat": "{{provider}} p95"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Semantic Cache Hits & Quality Fallbacks",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(costguard_cache_hits_total)",
+          "legendFormat": "Cache Hits"
+        },
+        {
+          "expr": "sum(costguard_fallbacks_total)",
+          "legendFormat": "Quality Fallbacks"
+        }
+      ]
+    }
+  ]
+}
