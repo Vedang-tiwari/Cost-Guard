@@ -1,113 +1,102 @@
-# Cost Guard 🛡️
+# Cost Guard
 ### Intelligent LLM Cost Optimization & Quality Preservation Platform
 
-Cost Guard is an intelligent LLM gateway designed to dramatically reduce the operational expenses of applications consuming Large Language Model APIs (OpenAI, Anthropic, Google Gemini, Ollama) without compromising output quality beyond configurable thresholds.
+Cost Guard is a full-stack intelligent LLM gateway and FinOps control plane designed to reduce Large Language Model operational expenditure across **OpenAI, Anthropic, Google Gemini, and Ollama** while preserving output quality through automated evaluation gates and cascade fallbacks.
 
 ---
 
-## 🚀 Features (Phase 1 Implemented)
+## Key Capabilities
 
-- **Unified LLM Gateway**: OpenAI-compatible chat completion endpoint (`/api/v1/chat/completions`) capable of interacting with OpenAI, Anthropic, Google Gemini, and Ollama.
-- **Provider Abstraction Layer**: Pluggable adapters (`OpenAIProvider`, `AnthropicProvider`, `GeminiProvider`, `OllamaProvider`) that normalize inputs, outputs, errors, and token usage metrics.
-- **Application Authentication**: Secure API key authentication with SHA-256 hashed keys stored in PostgreSQL with organization isolation.
-- **Model Registry & Pricing**: Centralized registry tracking model capabilities, pricing per million tokens (input & output), context windows, and active statuses.
-- **Usage & Cost Tracking**: Detailed telemetry recording token consumption, latency, baseline cost, actual cost, and request status in PostgreSQL.
-- **Containerized Infrastructure**: Production-ready `Dockerfile` and `docker-compose.yml` pre-configured with PostgreSQL and `pgvector`.
-- **Health & Readiness Probes**: `/health` and `/ready` endpoints verifying service state, DB connectivity, and provider configurations.
-
----
-
-## 🛠️ Tech Stack (Phase 1)
-
-- **Runtime**: Python 3.12+
-- **API Framework**: FastAPI, Uvicorn
-- **ORM & Migrations**: SQLAlchemy 2.0 (asyncio + asyncpg), Alembic
-- **Database**: PostgreSQL 16 + pgvector
-- **Providers Supported**: OpenAI, Anthropic, Google Gemini, Ollama
-- **Testing**: Pytest, Pytest-asyncio, Pytest-mock
+- **Unified LLM Gateway (`POST /api/v1/chat/completions`)**: Pluggable adapters (`OpenAIProvider`, `AnthropicProvider`, `GeminiProvider`, `OllamaProvider`) with normalized request/response telemetry and error mapping.
+- **Complexity Analyzer & Intelligent Routing**: 0–100 request complexity scoring, 7-category task classification, and cost-aware tier selection (`complexity_based`, `rule_based`, `explicit`).
+- **Semantic Caching**: Tenant-isolated vector cache (`pgvector` / dense embeddings + cosine similarity threshold) eliminating duplicate LLM spend.
+- **Prompt & Token Optimization**: Safe whitespace/filler compression with measurable input/output token accounting against the `gpt-4o` baseline.
+- **Quality Preservation & Cascade Fallback**: Exact match, embedding similarity, JSON schema validation, task rubrics, and LLM-as-a-judge evaluation with automatic escalation on quality threshold failure.
+- **Budgets & Spend Alerts**: Daily, weekly, and monthly caps with warning thresholds and automatic `HTTP 429` hard limits.
+- **SaaS Analytics Dashboard & API Playground**: React + TypeScript + Tailwind UI with side-by-side comparison playground, Recharts analytics visualizations, model pricing registry, budget management, and benchmark runner.
+- **Production Observability**: Prometheus `/metrics` endpoint, pre-provisioned Grafana dashboard, PostgreSQL 16 + Redis Docker Compose stack, and GitHub Actions CI.
 
 ---
 
-## 📋 Quickstart
+## Documentation Index
 
-### 1. Environment Configuration
+- [Architecture Overview](docs/architecture.md)
+- [API Reference](docs/api.md)
+- [Model Routing & Optimization](docs/routing.md)
+- [Quality Evaluation, Budgets & Observability](docs/evaluation.md)
+- [Docker & Production Deployment](docs/deployment.md)
+- [Benchmark Comparison Results](benchmarks/BENCHMARK_RESULTS.md)
 
-Copy the example environment configuration:
+---
+
+## Quickstart
+
+### Option 1: Full Docker Compose Stack (Recommended)
+
 ```bash
 cp .env.example .env
+# Optionally set OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY in .env
+
+# Start PostgreSQL, Redis, FastAPI Backend (with auto-migrations), and React Frontend
+docker compose up -d --build
+
+# Include Prometheus (:9090) & Grafana (:3001) monitoring stack:
+docker compose --profile monitoring up -d --build
 ```
-Fill in your API keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
 
-### 2. Run with Docker Compose
+Access:
+- **Web Dashboard**: `http://localhost:3000`
+- **Gateway OpenAPI Docs**: `http://localhost:8000/docs`
+- **Prometheus Metrics**: `http://localhost:8000/metrics`
 
+### Option 2: Local Development
+
+**1. Backend**
 ```bash
-docker compose up -d
-```
-
-### 3. Local Development
-
-```bash
-# Activate virtual environment
-.\.venv\Scripts\activate   # Windows
-source .venv/bin/activate  # Linux/Mac
-
-# Install dependencies
+# Create & activate Python 3.12 virtualenv, then install dependencies
 pip install -r backend/requirements.txt
 
-# Run migrations
 cd backend
 alembic upgrade head
-
-# Seed initial models and test application
 python ../scripts/seed_models.py
-
-# Start Gateway
 uvicorn app.main:app --reload --port 8000
 ```
+Seeded demo credentials: `demo@costguard.ai` / `CostGuard2026!` (and API key `cg_test_1234567890abcdef`).
 
-### 4. Send a Request
-
+**2. Frontend Dashboard**
 ```bash
-curl -X POST http://localhost:8000/api/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: cg_live_your_api_key" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [
-      {"role": "user", "content": "Explain machine learning in simple terms."}
-    ]
-  }'
+cd frontend
+npm install
+npm run dev
 ```
+Open `http://localhost:5173`.
 
 ---
 
-## 🧪 Testing
+## Benchmarks & Testing
 
-Run the test suite:
+Run the reproducible 14-prompt multi-category benchmark suite:
 ```bash
+python scripts/run_benchmarks.py
+```
+
+Run automated linting, backend tests, and frontend verification:
+```bash
+# Backend
+ruff check backend scripts
 pytest backend/tests -v
+
+# Frontend
+cd frontend
+npm run typecheck
+npm run build
 ```
 
 ---
 
-## 🗺️ Roadmap & Phase Status
+## Project Roadmap Status
 
-- [x] **Phase 1: Core Gateway and Provider Infrastructure** (Completed)
-- [x] **Phase 2: Intelligent Optimization Engine** (Completed)
-  - Token Estimator (model-compatible estimation)
-  - Task Classifier & Complexity Scoring (0-100 scale, Low/Medium/High tiers)
-  - Intelligent Model Router (complexity-based, rule-based, explicit)
-  - Semantic Caching (dense embeddings, cosine similarity, tenant isolation)
-  - Prompt Optimizer (whitespace & filler reduction, token savings metrics)
-  - Accurate Pricing Registry & Savings Calculator
-  - End-to-End Optimization Pipeline
-- [x] **Phase 3: Quality Evaluation and Cost Control** (Completed)
-  - Quality Evaluation Engine (exact match, semantic similarity, JSON schema validity, task rubrics)
-  - LLM-as-a-Judge & Heuristic Fallback Scoring
-  - Quality-Aware Cascade Fallback Routing
-  - Multi-tier Budgets & Alerts (daily/weekly/monthly, warning thresholds, hard-limit 429 enforcement)
-  - Business & Technical Analytics Backend (`/api/v1/analytics/*`)
-  - Prometheus Observability Exporter (`/metrics`)
-  - Automated Benchmark Suite (`scripts/run_benchmarks.py` -> 92–96% cost savings with 97.5% quality retention)
-- [ ] **Phase 4: Frontend Dashboard & Production Readiness** (Pending authorization: React/Vite UI, Playground, Analytics Dashboard)
-
+- [x] **Phase 1**: Core Gateway & Multi-Provider Infrastructure
+- [x] **Phase 2**: Intelligent Optimization Engine (Routing, Caching, Compression, Pricing)
+- [x] **Phase 3**: Quality Evaluation, Fallback Cascade, Budgets, Analytics & Prometheus
+- [x] **Phase 4**: React Dashboard, Auth, API Playground, Docker/Grafana Stack & CI Readiness
