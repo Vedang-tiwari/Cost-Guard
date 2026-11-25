@@ -1,7 +1,19 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from app.api.routes import analytics, budgets, chat, evaluations, health, models
+from app.api.routes import (
+    analytics,
+    applications,
+    auth,
+    benchmarks,
+    budgets,
+    chat,
+    evaluations,
+    health,
+    models,
+    playground,
+    policies,
+)
 from app.core.config import get_settings
 from app.core.exceptions import CostGuardException
 from app.core.logging import get_logger, setup_logging
@@ -59,11 +71,16 @@ async def costguard_exception_handler(request: Request, exc: CostGuardException)
 
 # Include Routers
 app.include_router(health.router)
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(applications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(models.router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
 app.include_router(budgets.router, prefix=settings.API_V1_PREFIX)
 app.include_router(evaluations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
+app.include_router(policies.router, prefix=settings.API_V1_PREFIX)
+app.include_router(benchmarks.router, prefix=settings.API_V1_PREFIX)
+app.include_router(playground.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/metrics", tags=["Observability"])
