@@ -53,6 +53,20 @@ class ModelInfo(BaseModel):
     pricing_version: str
 
 
+class ModelUpdateRequest(BaseModel):
+    input_price_per_million: float | None = Field(default=None, ge=0.0)
+    output_price_per_million: float | None = Field(default=None, ge=0.0)
+    is_active: bool | None = None
+    pricing_version: str | None = None
+
+
+class ProviderStatusInfo(BaseModel):
+    provider: str
+    configured: bool
+    models_count: int
+    status: str
+
+
 class HealthResponse(BaseModel):
     status: str
     environment: str
