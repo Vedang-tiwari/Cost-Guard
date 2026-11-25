@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'Cost Guard Dashboards'
+    orgId: 1
+    folder: 'Cost Guard'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
